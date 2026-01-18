@@ -46,9 +46,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onSignIn }) => 
               </h1>
               
               {/* SUBHEADING: Reduced size and contrast */}
-              <p className="text-lg text-slate-400 max-w-xl leading-relaxed font-medium">
-                Establish a verifiable Proof of First Creation in seconds. Secure your attribution without ever uploading your original files.
-              </p>
+              <div className="space-y-2">
+                <p className="text-lg text-slate-400 max-w-xl leading-relaxed font-medium">
+                  Establish a verifiable Proof of First Creation in seconds. Secure your attribution without ever uploading your original files.
+                </p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest opacity-60">
+                  Supports text, documents, images, and audio files.
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-col sm:flex-row items-center gap-6">

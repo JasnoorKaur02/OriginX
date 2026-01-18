@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { generateFingerprint, formatTimestamp } from '../utils/crypto';
 import { saveProof } from '../services/storageService';
 import { OriginalityProof } from '../types';
@@ -14,21 +14,53 @@ const CreateProof: React.FC<CreateProofProps> = ({ onProofCreated }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastResult, setLastResult] = useState<OriginalityProof | null>(null);
   const [isTyping, setIsTyping] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [fileData, setFileData] = useState<ArrayBuffer | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (content.length > 0) {
+    if (content.length > 0 && !fileData) {
       setIsTyping(true);
       const timer = setTimeout(() => setIsTyping(false), 1000);
       return () => clearTimeout(timer);
     }
-  }, [content]);
+  }, [content, fileData]);
+
+  const handleFileRead = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result instanceof ArrayBuffer) {
+        setFileData(e.target.result);
+        setContent(`[FILE SELECTED: ${file.name}]`);
+        if (!label) setLabel(file.name.split('.')[0]);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const onDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileRead(file);
+  };
 
   const handleGenerate = async () => {
-    if (!content.trim()) return;
+    const input = fileData || content;
+    if (!input || (typeof input === 'string' && !input.trim())) return;
 
     setIsProcessing(true);
     try {
-      const fingerprint = await generateFingerprint(content);
+      const fingerprint = await generateFingerprint(input);
       const now = new Date();
       const timestamp = now.toISOString();
 
@@ -43,6 +75,7 @@ const CreateProof: React.FC<CreateProofProps> = ({ onProofCreated }) => {
       setLastResult(newProof);
       setContent('');
       setLabel('');
+      setFileData(null);
       onProofCreated();
     } catch (error) {
       console.error('Generation failed', error);
@@ -74,29 +107,58 @@ const CreateProof: React.FC<CreateProofProps> = ({ onProofCreated }) => {
           </div>
 
           <div className="group relative">
-            <label className="absolute -top-3 left-4 bg-white px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 group-focus-within:text-indigo-600 transition-colors">
+            <label className="absolute -top-3 left-4 bg-white px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 group-focus-within:text-indigo-600 transition-colors z-10">
               Content for fingerprinting
             </label>
             <textarea
               value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Paste your text, code, or data here..."
+              onChange={(e) => {
+                setContent(e.target.value);
+                setFileData(null);
+              }}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              placeholder={isDragging ? "Drop file to generate fingerprint" : "Paste your content here — or drop a file"}
               rows={8}
-              className="w-full px-5 py-5 bg-white border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none transition-all font-mono text-sm placeholder:text-slate-300 shadow-sm resize-none"
+              className={`w-full px-5 py-5 bg-white border-2 rounded-2xl outline-none transition-all font-mono text-sm placeholder:text-slate-400 shadow-sm resize-none ${
+                isDragging ? 'border-indigo-500 bg-indigo-50/30' : 'border-slate-100 focus:border-indigo-500'
+              }`}
             />
+            
+            <button 
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute bottom-4 right-4 w-10 h-10 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-xl transition-all"
+              title="Upload file"
+            >
+              <i className="fas fa-paperclip text-lg"></i>
+            </button>
+
             {isTyping && (
-              <div className="absolute bottom-4 right-4 flex items-center gap-2 text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-1 rounded-md animate-pulse">
+              <div className="absolute bottom-4 left-4 flex items-center gap-2 text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-1 rounded-md animate-pulse pointer-events-none">
                 <i className="fas fa-circle-notch animate-spin"></i>
                 PREPARING FINGERPRINT
               </div>
             )}
+            
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              onChange={(e) => e.target.files?.[0] && handleFileRead(e.target.files[0])}
+            />
           </div>
+          
+          <p className="text-[10px] text-slate-400 uppercase tracking-widest text-center">
+            Supports PDF, DOCX, images, and audio
+          </p>
 
           <button
             onClick={handleGenerate}
-            disabled={!content.trim() || isProcessing}
+            disabled={(!content.trim() && !fileData) || isProcessing}
             className={`w-full py-4 px-8 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-3 shadow-xl ${
-              !content.trim() || isProcessing 
+              (!content.trim() && !fileData) || isProcessing 
                 ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none' 
                 : 'bg-slate-900 text-white hover:bg-black active:scale-[0.99] shadow-slate-200'
             }`}

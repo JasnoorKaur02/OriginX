@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { generateFingerprint, formatTimestamp } from '../utils/crypto';
 import { findProofByFingerprint } from '../services/storageService';
 import { VerificationStatus, OriginalityProof } from '../types';
@@ -7,18 +7,49 @@ import { VerificationStatus, OriginalityProof } from '../types';
 const VerifyContent: React.FC = () => {
   const [content, setContent] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [status, setStatus] = useState<VerificationStatus>('IDLE');
   const [matchingProof, setMatchingProof] = useState<OriginalityProof | null>(null);
+  const [fileData, setFileData] = useState<ArrayBuffer | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileRead = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result instanceof ArrayBuffer) {
+        setFileData(e.target.result);
+        setContent(`[FILE LOADED: ${file.name}]`);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const onDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileRead(file);
+  };
 
   const handleVerify = async () => {
-    if (!content.trim()) return;
+    const input = fileData || content;
+    if (!input || (typeof input === 'string' && !input.trim())) return;
 
     setIsVerifying(true);
     setStatus('IDLE');
     setMatchingProof(null);
 
     try {
-      const currentFingerprint = await generateFingerprint(content);
+      const currentFingerprint = await generateFingerprint(input);
       const found = findProofByFingerprint(currentFingerprint);
 
       setTimeout(() => {
@@ -44,19 +75,49 @@ const VerifyContent: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-3xl p-8 shadow-xl shadow-slate-200/50 border border-slate-100 space-y-6">
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="Paste content to verify..."
-          rows={6}
-          className="w-full px-6 py-6 bg-slate-50 border-2 border-transparent focus:bg-white focus:border-indigo-500 outline-none transition-all font-mono text-sm rounded-2xl placeholder:text-slate-400"
+        <div className="relative">
+          <textarea
+            value={content}
+            onChange={(e) => {
+              setContent(e.target.value);
+              setFileData(null);
+            }}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+            placeholder={isDragging ? "Drop file to generate fingerprint" : "Paste your content here — or drop a file"}
+            rows={6}
+            className={`w-full px-6 py-6 border-2 outline-none transition-all font-mono text-sm rounded-2xl placeholder:text-slate-400 ${
+              isDragging ? 'border-indigo-500 bg-indigo-50/30' : 'bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500'
+            }`}
+          />
+          
+          <button 
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="absolute bottom-4 right-4 w-10 h-10 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-all"
+            title="Upload file"
+          >
+            <i className="fas fa-paperclip text-lg"></i>
+          </button>
+        </div>
+
+        <p className="text-[10px] text-slate-400 uppercase tracking-widest text-center">
+          Supports PDF, DOCX, images, and audio
+        </p>
+        
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          className="hidden" 
+          onChange={(e) => e.target.files?.[0] && handleFileRead(e.target.files[0])}
         />
 
         <button
           onClick={handleVerify}
-          disabled={!content.trim() || isVerifying}
+          disabled={(!content.trim() && !fileData) || isVerifying}
           className={`w-full py-4 px-8 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-3 ${
-            !content.trim() || isVerifying 
+            (!content.trim() && !fileData) || isVerifying 
               ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
               : 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-[0.99] shadow-lg shadow-indigo-200'
           }`}
