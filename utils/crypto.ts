@@ -10,6 +10,10 @@
  * 4. Convert buffer to hex string.
  */
 export async function generateFingerprint(content: string | ArrayBuffer): Promise<string> {
+  if (!window.crypto || !window.crypto.subtle) {
+    throw new Error("Web Crypto API is not available. Ensure you are using HTTPS.");
+  }
+
   const msgUint8 = typeof content === 'string' 
     ? new TextEncoder().encode(content) 
     : new Uint8Array(content);

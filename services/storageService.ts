@@ -15,13 +15,16 @@ export const saveProof = (proof: OriginalityProof): void => {
 
 /**
  * Retrieves all stored originality proofs.
+ * Validates that the returned data is an array to avoid type errors.
  */
 export const getStoredProofs = (): OriginalityProof[] => {
   const data = localStorage.getItem(STORAGE_KEY);
   if (!data) return [];
   try {
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
+    console.warn("Storage corruption detected. Resetting vault.");
     return [];
   }
 };
